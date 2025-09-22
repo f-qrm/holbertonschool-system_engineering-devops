@@ -1,0 +1,56 @@
+# 0. Simple web stack
+
+```
+                ┌─────────────────────────┐
+                │        User             │
+                │   (Web browser)         │
+                └───────────┬─────────────┘
+                            │
+                            ▼
+                 DNS resolves www.foobar.com
+                        to 8.8.8.8
+                            │
+                            ▼
+                ┌─────────────────────────┐
+                │        Server           │
+                │     (IP: 8.8.8.8)       │
+                └───────────┬─────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        │                   │                   │
+        ▼                   ▼                   ▼
+┌─────────────┐     ┌───────────────┐    ┌───────────────┐
+│  Web server │     │ Application   │    │   Database    │
+│   (Nginx)   │     │   server      │    │    (MySQL)    │
+└─────────────┘     └───────────────┘    └───────────────┘
+```
+
+## Request flow
+
+1. The user types [www.foobar.com](http://www.foobar.com) in the browser.
+2. The DNS system resolves `www.foobar.com` to the IP address `8.8.8.8`.
+3. The browser connects to the server at `8.8.8.8` using the HTTP protocol.
+4. The request reaches the web server (Nginx).
+
+   - Nginx serves static files (CSS, JS, images).
+   - For dynamic requests, it forwards the traffic to the application server.
+5. The application server runs the application code and executes the business logic.
+6. If data is needed, the application server queries the MySQL database.
+7. The application server sends the response back to the web server.
+8. The web server returns the final HTTP response to the user’s browser.
+
+## Components explained
+
+- Server: A computer that provides services to clients over the internet. Here, it hosts the web server, application server, and database.
+- Domain name: A human-readable name (foobar.com) that maps to the IP address of the server.
+- DNS record for www: The www is a CNAME record (or sometimes an A record) pointing to the server IP 8.8.8.8.
+- Web server (Nginx): Handles HTTP requests, serves static files, and forwards dynamic ones to the application server.
+- Application server: Runs the application code (Python, PHP, Ruby, etc.) and handles the business logic.
+- Database (MySQL): Stores and retrieves persistent data like users, posts, or products.
+- Communication: The server communicates with the user’s computer using the HTTP protocol (or HTTPS if SSL/TLS is configured).
+
+
+## Issues with this infrastructure
+- SPOF (Single Point of Failure): If the server goes down, the whole website is unavailable.
+- Maintenance downtime: Restarting Nginx, MySQL, or deploying new code causes temporary downtime.
+- Scalability: One server cannot handle a very high amount of traffic; it cannot scale horizontally.
