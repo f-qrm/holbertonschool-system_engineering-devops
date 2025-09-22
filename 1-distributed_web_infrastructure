@@ -1,0 +1,112 @@
+Diagram:
+
+                              +-------------------------+
+                              |         Internet        |
+                              +-----------+-------------+
+                                          |
+                                          v
+                             DNS resolves www.foobar.com
+                                  to LB public IP
+                                          |
+                                          v
+                         +--------------------------------+
+                         |        Load Balancer           |
+                         |         (HAproxy)              |
+                         +-----------+-----------+---------+
+                                     |           |
+                                     |           |
+                                     v           v
+               +---------------------+           +---------------------+
+               |                                           |
+               v                                           v
+    +----------------------+                     +----------------------+
+    |   App Server 1       |                     |   App Server 2       |
+    | Nginx + App server   |                     | Nginx + App server   |
+    | Application code     |                     | Application code     |
+    +----------+-----------+                     +----------+-----------+
+               |                                          |
+               +---------------------+--------------------+
+                                     |
+                                     v
+                        +-----------------------------+
+                        | Database Primary (MySQL)    |
+                        | All writes go here          |
+                        +-------------+---------------+
+                                      |
+                                      v
+                        +-----------------------------+
+                        | Database Replica (MySQL)    |
+                        | Read-only copy              |
+                        +-----------------------------+
+
+
+Request flow:
+
+1. User types www.foobar.com in browser.
+2. DNS resolves the name to the public IP of the load balancer.
+3. Browser sends the request to the load balancer.
+4. Load balancer forwards the request to one of the app servers using its distribution algorithm.
+5. App server (Nginx + application server) handles the request.
+   - Static files are served by Nginx.
+   - Dynamic logic is handled by the application code.
+6. If data is needed, app server queries the database:
+   - Writes go to the Primary MySQL.
+   - Reads can go to the Replica if configured.
+7. Response goes back through the load balancer to the user.
+
+
+Why each element is added:
+
+- Load balancer (HAproxy): distributes traffic between multiple servers, improves availability, detects unhealthy servers.
+- Two app servers: redundancy and horizontal scaling.
+- Database Primary + Replica: Primary handles writes, Replica offloads reads and provides redundancy.
+
+
+Load balancer distribution algorithm:
+
+Example: Round-robin.
+Each request is forwarded to the next backend server in rotation (server1, server2, server1...).
+It works well if servers are similar in capacity and stateless.
+
+Other options:
+- Leastconn: send request to the server with the fewest active connections.
+- Source hashing: map clients consistently to servers (basic session stickiness).
+
+
+Active-Active vs Active-Passive setup:
+
+- Active-Active: both load balancers handle traffic at the same time. More throughput, no downtime if one fails.
+- Active-Passive: one load balancer is active, the other is on standby. If active fails, standby takes over.
+
+This setup is Active-Passive with a single HAproxy, because only one load balancer is present.
+
+
+Database Primary-Replica cluster:
+
+- Primary writes all changes and logs them.
+- Replica reads the Primary’s binary logs and applies changes.
+- Replication can be asynchronous or semi-synchronous.
+- Writes must go to the Primary.
+- Reads can be served by Replica to reduce load.
+- If Primary fails, a Replica must be promoted.
+
+
+Difference between Primary and Replica:
+
+- Primary: accepts writes and has the most up-to-date data.
+- Replica: read-only, might lag behind Primary slightly (replication lag).
+- Application should send writes to Primary, reads can be sent to Replica.
+
+
+Issues with this infrastructure:
+
+- Single Points of Failure:
+  * The load balancer (if only one is deployed).
+  * The Primary database (if it fails, no writes are possible).
+- Security issues:
+  * No firewall, all ports exposed.
+  * No HTTPS, traffic is plaintext.
+  * Database could be exposed to the internet.
+- No monitoring:
+  * No metrics, logs, or alerts.
+  * Failures may go undetected until too late.
