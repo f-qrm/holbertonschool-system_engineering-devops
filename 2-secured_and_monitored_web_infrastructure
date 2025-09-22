@@ -1,0 +1,101 @@
+Diagram:
+
+                              +-------------------------+
+                              |         Internet        |
+                              +-----------+-------------+
+                                          |
+                                          v
+                             DNS resolves www.foobar.com
+                                  to LB public IP
+                                          |
+                                          v
+                         +--------------------------------+
+                         |        Load Balancer           |
+                         |         (HAproxy)              |
+                         |     Terminate SSL (HTTPS)      |
+                         +-----------+-----------+---------+
+                                     |           |
+                                     v           v
+               +---------------------+           +---------------------+
+               |                                           |
+               v                                           v
+    +----------------------+                     +----------------------+
+    |   App Server 1       |                     |   App Server 2       |
+    | Nginx + App server   |                     | Nginx + App server   |
+    | Application code     |                     | Application code     |
+    | Monitoring client    |                     | Monitoring client    |
+    +----------+-----------+                     +----------+-----------+
+               |                                          |
+               +---------------------+--------------------+
+                                     |
+                                     v
+                        +-----------------------------+
+                        | Database Primary (MySQL)    |
+                        | Monitoring client           |
+                        +-------------+---------------+
+                                      |
+                                      v
+                        +-----------------------------+
+                        | Database Replica (MySQL)    |
+                        | Read-only copy              |
+                        +-----------------------------+
+
+Three firewalls are deployed: one in front of the load balancer, one between app servers and database, one for internal management access.
+
+
+Request flow:
+
+1. User types www.foobar.com in browser.
+2. DNS resolves name to load balancer IP.
+3. Browser connects to HAproxy using HTTPS (SSL/TLS).
+4. Load balancer terminates SSL and forwards decrypted traffic to app servers.
+5. Load balancer distributes traffic using round-robin or another algorithm.
+6. App server handles requests, serves static files via Nginx, runs dynamic logic via application code.
+7. App server queries database as needed (writes to Primary, reads can go to Replica).
+8. Monitoring clients on each server collect metrics and logs, sending them to centralized monitoring service.
+9. Response travels back through load balancer to the user, encrypted if HTTPS is configured.
+
+
+Why each additional element is added:
+
+- Firewalls:
+  - Protect servers from unauthorized access.
+  - Control which ports and IPs can reach each server.
+  - Reduce attack surface.
+- SSL certificate (HTTPS):
+  - Encrypts traffic between client and load balancer.
+  - Prevents eavesdropping and man-in-the-middle attacks.
+- Monitoring clients:
+  - Collect server metrics (CPU, memory, disk, network, application logs).
+  - Send data to central monitoring system (e.g., Sumologic, Prometheus, Datadog) for visualization and alerting.
+
+
+Monitoring details:
+
+- Monitoring clients gather:
+  - System metrics (CPU, memory, network, disk usage).
+  - Application metrics (request count, error rate, latency).
+  - Logs from web server and application server.
+- Clients push or pull data to a centralized monitoring service.
+- To monitor QPS (queries per second) on the web server:
+  - Collect access logs or Nginx metrics.
+  - Use monitoring agent to count requests per second per server.
+
+
+Issues with this infrastructure:
+
+- Terminating SSL at load balancer level:
+  - Traffic between load balancer and app servers is unencrypted.
+  - If the internal network is compromised, sensitive data can be exposed.
+- Only one MySQL server accepts writes:
+  - SPOF for write operations.
+  - If Primary fails, write operations stop until failover.
+- Servers with all same components (web, app, DB):
+  - Waste of resources and inefficient scaling.
+  - Complex replication and potential data inconsistencies if all run databases.
+  - Hard to maintain separation of roles and security boundaries.
+
+
+Summary:
+
+This design improves security with firewalls and HTTPS, adds observability with monitoring clients, and keeps redundancy for app servers. Primary database is still a SPOF for writes, and SSL termination at the load balancer can be a risk if internal traffic is not encrypted. Monitoring ensures visibility into server health and application performance, and can be used to track metrics such as QPS or error rates.
