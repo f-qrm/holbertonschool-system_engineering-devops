@@ -1,0 +1,88 @@
+Diagram:
+
+                              +-------------------------+
+                              |         Internet        |
+                              +-----------+-------------+
+                                          |
+                                          v
+                             DNS resolves www.foobar.com
+                                  to HAproxy cluster
+                                          |
+                                          v
+                         +--------------------------------+
+                         |      Load Balancer Cluster     |
+                         |       (HAproxy)               |
+                         | Active-Active or Active-Passive|
+                         +-----------+-----------+--------+
+                                     |           |
+                                     v           v
+               +---------------------+           +---------------------+
+               |                                           |
+               v                                           v
+    +----------------------+                     +----------------------+
+    | Web Server 1         |                     | Web Server 2         |
+    | (Nginx)              |                     | (Nginx)              |
+    +----------+-----------+                     +----------+-----------+
+               |                                          |
+               v                                          v
+    +----------------------+                     +----------------------+
+    | Application Server 1 |                     | Application Server 2 |
+    | (App code)           |                     | (App code)           |
+    +----------+-----------+                     +----------+-----------+
+               |                                          |
+               +---------------------+--------------------+
+                                     |
+                                     v
+                        +-----------------------------+
+                        | Database Server (Primary)   |
+                        | MySQL writes handled here   |
+                        +-------------+---------------+
+                                      |
+                                      v
+                        +-----------------------------+
+                        | Database Replica (MySQL)    |
+                        | Read-only copy              |
+                        +-----------------------------+
+
+
+Request flow:
+
+1. User types www.foobar.com in browser.
+2. DNS resolves the name to the HAproxy cluster.
+3. HAproxy receives the request and distributes it to one of the web servers using round-robin or another algorithm.
+4. Web server handles static content (HTML, CSS, JS) and forwards dynamic requests to the application server.
+5. Application server executes the business logic and queries the database if needed.
+6. Writes are sent to the primary database; reads can be served by the replica.
+7. Response is returned through the web server and HAproxy to the client.
+
+
+Why each element is added:
+
+- New server: allows splitting roles (web, application, database) to reduce load and isolate components.
+- Load-balancer cluster: ensures high availability and distributes incoming traffic across web servers.
+- Web server separated: serves static content efficiently and reduces load on the application server.
+- Application server separated: handles dynamic requests, executes business logic, and isolates CPU/memory-intensive tasks.
+- Database server separated: isolates database operations, improves performance, and enables replication for redundancy.
+
+
+Application server vs Web server:
+
+- Web server (Nginx):
+  - Handles HTTP requests.
+  - Serves static content (HTML, CSS, JS, images).
+  - Can act as a reverse proxy for dynamic requests to the application server.
+
+- Application server:
+  - Runs application code (e.g., Python, Ruby, Node.js).
+  - Executes business logic.
+  - Queries the database for dynamic content.
+  
+- Separation benefits:
+  - Better resource utilization.
+  - Easier horizontal scaling of web or application servers independently.
+  - Improved maintainability and isolation of responsibilities.
+
+
+Summary:
+
+This infrastructure splits components into dedicated servers for better performance and scalability. HAproxy load balancer cluster ensures high availability. Web servers handle static content, application servers handle dynamic requests, and the database is separated for performance and replication. This design allows easy scaling, better isolation of services, and improved reliability.
